@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+# Single-file Neural Network on Iris (from scratch, NumPy)
+# Modes:
+#   - train: python nn_iris_single.py --mode train --epochs 1000 --lr 0.01 --hidden 3
+#   - eval:  python nn_iris_single.py --mode evaluate --run_dir experiments/runs/<run_id>
+# Notes:
+#   - Uses finite-difference gradients for pedagogy; slow but transparent.
+#   - Dataset: Iris from scikit-learn.
+
+import os
+import time
+import json
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+
+# -------------------------
+# Data utilities
+# -------------------------
+
+def load_iris_xy(features=(0,1), target_index=2, normalize=True, seed=42):
+    iris = load_iris()
+    X = iris.data[:, list(features)]
+    y = iris.data[:, target_index]  # regression-style target for simplicity
+    if normalize:
+        X = X / np.maximum(np.amax(X, axis=0), 1e-12)
+        y = y / max(np.max(y), 1e-12)
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(y))
+    return X[order], y[order].reshape(-1,1)
+
+# -------------------------
+# Model
+# -------------------------
+
+def sigmoid(z):
+    return 1.0 / (1.0 + np.exp(-z))
+
+def mse(y_pred, y_true):
+    return 0.5 * np.mean((y_true - y_pred) ** 2)
+
+class NeuralNetwork:
+    def __init__(self, n0, n1, n2, seed=42):
+        rng = np.random.default_rng(seed)
+        self.n0, self.n1, self.n2 = n0, n1, n2
+        self.W1 = rng.standard_normal((n0, n1))
+        self.b1 = rng.standard_normal((1, n1))
+        self.W2 = rng.standard_normal((n1, n2))
+        self.b2 = rng.standard_normal((1, n2))
+
+    def forward(self, X):
+        z1 = X @ self.W1 + self.b1
+        a1 = sigmoid(z1)
+        y  = a1 @ self.W2 + self.b2
+        cache = {"X": X, "z1": z1, "a1": a1, "y": y}
+        return y, cache
+
+    def predict(self, X):
+        y, _ = self.forward(X)
+        return y
+
+# Finite-difference gradient (slow; educational)
+def finite_diff_grad(net, X, y, eps=1e-5):
+    base_pred, _ = net.forward(X)
+    base_loss = mse(base_pred, y)
+
+    dW1 = np.zeros_like(net.W1)
+    db1 = np.zeros_like(net.b1)
+    dW2 = np.zeros_like(net.W2)
+    db2 = np.zeros_like(net.b2)
+
+    for i in range(net.W1.shape[0]):
+        for j in range(net.W1.shape[1]):
+            net.W1[i, j] += eps
+            loss = mse(net.forward(X)[0], y)
+            dW1[i, j] = (loss - base_loss) / eps
+            net.W1[i, j] -= eps
+
+    for j in range(net.b1.shape[1]):
+        net.b1[0, j] += eps
+        loss = mse(net.forward(X)[0], y)
+        db1[0, j] = (loss - base_loss) / eps
+        net.b1[0, j] -= eps
+
+    for i in range(net.W2.shape[0]):
+        for j in range(net.W2.shape[1]):
+            net.W2[i, j] += eps
+            loss = mse(net.forward(X)[0], y)
+            dW2[i, j] = (loss - base_loss) / eps
+            net.W2[i, j] -= eps
+
+    for j in range(net.b2.shape[1]):
+        net.b2[0, j] += eps
+        loss = mse(net.forward(X)[0], y)
+        db2[0, j] = (loss - base_loss) / eps
+        net.b2[0, j] -= eps
+
+    return dW1, db1, dW2, db2
+
+# -------------------------
+# Training / Evaluation
+# -------------------------
+
+def train(hidden=3, lr=0.01, epochs=500, seed=42, save_dir="experiments/runs", plot=True):
+    X, y = load_iris_xy(normalize=True, seed=seed)
+    net = NeuralNetwork(n0=X.shape[1], n1=hidden, n2=1, seed=seed)
+
+    losses = []
+    for ep in range(epochs):
+        y_pred, _ = net.forward(X)
+        loss = mse(y_pred, y)
+        dW1, db1, dW2, db2 = finite_diff_grad(net, X, y)
+
+        net.W1 -= lr * dW1
+        net.b1 -= lr * db1
+        net.W2 -= lr * dW2
+        net.b2 -= lr * db2
+
+        losses.append(float(loss))
+        if (ep+1) % max(1, epochs//10) == 0:
+            print(f"Epoch {ep+1}/{epochs} - loss={loss:.6f}")
+
+    os.makedirs(save_dir, exist_ok=True)
+    run_id = f"run_{int(time.time())}"
+    out = os.path.join(save_dir, run_id)
+    os.makedirs(out, exist_ok=True)
+
+    np.save(os.path.join(out, "W1.npy"), net.W1)
+    np.save(os.path.join(out, "b1.npy"), net.b1)
+    np.save(os.path.join(out, "W2.npy"), net.W2)
+    np.save(os.path.join(out, "b2.npy"), net.b2)
+
+    with open(os.path.join(out, "metrics.json"), "w") as f:
+        json.dump({"losses": losses, "final_loss": losses[-1], "epochs": epochs, "lr": lr, "hidden": hidden}, f, indent=2)
+
+    if plot:
+        plt.figure(figsize=(6,4))
+        plt.plot(range(1, len(losses)+1), losses, linewidth=2)
+        plt.title("Cost by iteration")
+        plt.ylabel("Cost (MSE * 0.5)")
+        plt.xlabel("Epochs")
+        plt.tight_layout()
+        os.makedirs(os.path.join(out, "figs"), exist_ok=True)
+        plt.savefig(os.path.join(out, "figs", "loss.png"))
+        # Optionally show: plt.show()
+
+    print(f"Saved run to: {out}")
+    return out, losses[-1]
+
+def evaluate(run_dir, seed=123):
+    X, y = load_iris_xy(normalize=True, seed=seed)
+    # infer hidden size from saved W1
+    W1 = np.load(os.path.join(run_dir, "W1.npy"))
+    b1 = np.load(os.path.join(run_dir, "b1.npy"))
+    W2 = np.load(os.path.join(run_dir, "W2.npy"))
+    b2 = np.load(os.path.join(run_dir, "b2.npy"))
+
+    net = NeuralNetwork(n0=X.shape[1], n1=W1.shape[1], n2=1, seed=seed)
+    net.W1, net.b1, net.W2, net.b2 = W1, b1, W2, b2
+
+    y_pred = net.predict(X)
+    loss = mse(y_pred, y)
+    print(f"Evaluation loss (same normalized Iris): {loss:.6f}")
+    return float(loss)
+
+# -------------------------
+# CLI
+# -------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="Single-file NumPy Neural Network on Iris")
+    parser.add_argument("--mode", type=str, choices=["train","evaluate"], default="train")
+    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--hidden", type=int, default=3)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--run_dir", type=str, default="")
+    args = parser.parse_args()
+
+    if args.mode == "train":
+        train(hidden=args.hidden, lr=args.lr, epochs=args.epochs, seed=args.seed, plot=True)
+    else:
+        if not args.run_dir:
+            raise SystemExit("Please provide --run_dir for evaluate mode")
+        evaluate(args.run_dir, seed=args.seed)
+
+if __name__ == "__main__":
+    main()
