@@ -1,0 +1,374 @@
+
+# Project: Perceptron and Gradient Descent (All-in-One)
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.axes3d import Axes3D  # noqa: F401
+from matplotlib import cm
+from sympy import symbols, diff
+from math import log
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+
+# %matplotlib inline  # uncomment in Jupyter if needed
+
+# -------------------------
+# Example 1: f(x)=x^2+x+1
+# -------------------------
+def f(x):
+    return x**2 + x + 1  # convex function
+
+def df(x):
+    return 2*x + 1       # derivative
+
+# Plot f
+x_1 = np.linspace(-3, 3, 500)
+plt.xlim(-3, 3); plt.ylim(0, 8)
+plt.xlabel('X'); plt.ylabel('f(x)')
+plt.plot(x_1, f(x_1)); plt.show()
+
+# Plot f and df side-by-side
+plt.figure(figsize=[15,5])
+plt.subplot(1,2,1)
+plt.xlim(-3,3); plt.ylim(0,8)
+plt.title('Cost function'); plt.xlabel('X'); plt.ylabel('f(x)')
+plt.plot(x_1, f(x_1), color='blue', linewidth=3)
+
+plt.subplot(1,2,2)
+plt.title('Slope of the cost function'); plt.xlabel('X'); plt.ylabel('df(x)')
+plt.grid(); plt.xlim(-2,3); plt.ylim(-3,6)
+plt.plot(x_1, df(x_1), color='skyblue', linewidth=5)
+plt.show()
+
+# TASK-1: Gradient Descent on f
+new_x = 3
+previous_x = 0
+step_multiplier = 0.1
+precision = 1e-5
+
+x_list = [new_x]
+slope_list = [df(new_x)]
+
+for n in range(500):
+    previous_x = new_x
+    gradient = df(previous_x)  # REQUIRED
+    new_x = previous_x - step_multiplier * gradient  # REQUIRED
+    step_size = abs(new_x - previous_x)
+    x_list.append(new_x)
+    slope_list.append(df(new_x))  # REQUIRED
+    if step_size < precision:
+        print('TASK-1 loops:', n)
+        break
+
+print('TASK-1 local min x*:', new_x)
+print('TASK-1 slope df(x*):', df(new_x))
+print('TASK-1 f(x*):', f(new_x))
+
+# Superimpose GD
+plt.figure(figsize=[20,5])
+plt.subplot(1,3,1)
+plt.xlim(-3,3); plt.ylim(0,8)
+plt.title('Cost function'); plt.xlabel('X'); plt.ylabel('f(x)')
+plt.plot(x_1, f(x_1), color='blue', linewidth=3, alpha=0.8)
+values = np.array(x_list)
+plt.scatter(x_list, f(values), color='red', s=100, alpha=0.6)
+
+plt.subplot(1,3,2)
+plt.title('Slope of the cost function'); plt.xlabel('X'); plt.ylabel('df(x)')
+plt.grid(); plt.xlim(-2,3); plt.ylim(-3,6)
+plt.plot(x_1, df(x_1), color='skyblue', linewidth=5, alpha=0.6)
+plt.scatter(x_list, slope_list, color='red', s=100, alpha=0.5)
+
+plt.subplot(1,3,3)
+plt.title('Gradient Descent (close up)'); plt.xlabel('X')
+plt.grid(); plt.xlim(-0.55, -0.2); plt.ylim(-0.3, 0.8)
+plt.plot(x_1, df(x_1), color='skyblue', linewidth=6, alpha=0.8)
+plt.scatter(x_list, slope_list, color='red', s=300, alpha=0.6)
+plt.show()
+
+# -------------------------------------------------------------
+# Example 2: g(x)=x^4 - 4x^2 + 5 (multiple minima) + TASK-2/3
+# -------------------------------------------------------------
+x_2 = np.linspace(-2, 2, 1000)
+
+def g(x):
+    return x**4 - 4*(x**2) + 5  # REQUIRED
+
+def dg(x):
+    return 4*(x**3) - 8*x       # REQUIRED
+
+# TASK-3: plot g and dg
+plt.figure(figsize=[15,5])
+plt.subplot(1,2,1)
+plt.xlim(-2,2); plt.ylim(0.5,5.5)
+plt.title('Cost function'); plt.xlabel('X'); plt.ylabel('g(x)')
+plt.plot(x_2, g(x_2), color='blue', linewidth=3, alpha=0.8)
+
+plt.subplot(1,2,2)
+plt.title('Slope of the cost function'); plt.xlabel('X'); plt.ylabel('dg(x)')
+plt.grid(); plt.xlim(-2,2); plt.ylim(-6,8)
+plt.plot(x_2, dg(x_2), color='skyblue', linewidth=5, alpha=0.6)
+plt.show()
+
+# Generic 1D gradient descent utility
+def gradient_descent(derivative_func, initial_guess, multiplier=0.02, precision=0.001, max_iter=300):
+    new_x = initial_guess
+    x_list = [new_x]
+    slope_list = [derivative_func(new_x)]
+    for n in range(max_iter):
+        previous_x = new_x
+        gradient = derivative_func(previous_x)
+        new_x = previous_x - multiplier * gradient
+        step_size = abs(new_x - previous_x)
+        x_list.append(new_x)
+        slope_list.append(derivative_func(new_x))
+        if step_size < precision:
+            break
+    return new_x, x_list, slope_list
+
+local_min, list_x, deriv_list = gradient_descent(dg, 0.5, 0.02, 0.001)
+print('g local min from 0.5:', local_min, 'steps:', len(list_x))
+
+local_min, list_x, deriv_list = gradient_descent(dg, -0.5, 0.01, 0.0001)
+print('g local min from -0.5:', local_min, 'steps:', len(list_x))
+
+local_min, list_x, deriv_list = gradient_descent(dg, -0.1)
+print('g local min from -0.1:', local_min, 'steps:', len(list_x))
+
+# Plot trajectory for last run
+local_min, list_x, deriv_list = gradient_descent(dg, 0)
+plt.figure(figsize=[15,5])
+plt.subplot(1,2,1)
+plt.xlim(-2,2); plt.ylim(0.5,5.5)
+plt.title('Cost function'); plt.xlabel('X'); plt.ylabel('g(x)')
+plt.plot(x_2, g(x_2), color='blue', linewidth=3, alpha=0.8)
+plt.scatter(list_x, g(np.array(list_x)), color='red', s=100, alpha=0.6)
+
+plt.subplot(1,2,2)
+plt.title('Slope of the cost function'); plt.xlabel('X'); plt.ylabel('dg(x)')
+plt.grid(); plt.xlim(-2,2); plt.ylim(-6,8)
+plt.plot(x_2, dg(x_2), color='skyblue', linewidth=5, alpha=0.6)
+plt.scatter(list_x, deriv_list, color='red', s=100, alpha=0.5)
+plt.show()
+
+# -----------------------------------------
+# Example 3: Divergence/Overflow + TASK-4
+# -----------------------------------------
+# h(x) = x^5 - 2x^4 + 2, dh(x) = 5x^4 - 8x^3
+x_3 = np.linspace(-1.5, 2.5, 1000)
+
+def h(x):
+    return x**5 - 2*(x**4) + 2  # REQUIRED
+
+def dh(x):
+    return 5*(x**4) - 8*(x**3)  # REQUIRED
+
+local_min_h, list_x_h, deriv_list_h = gradient_descent(dh, initial_guess=1.0, multiplier=0.005, precision=1e-5, max_iter=1000)
+print('h local min from 1.0:', local_min_h, 'steps:', len(list_x_h))
+
+plt.figure(figsize=[15,5])
+plt.subplot(1,2,1)
+plt.title('h(x) and iterates'); plt.xlabel('X'); plt.ylabel('h(x)')
+plt.plot(x_3, h(x_3), color='blue', linewidth=3, alpha=0.8)
+plt.scatter(list_x_h, h(np.array(list_x_h)), color='red', s=80, alpha=0.6)
+
+plt.subplot(1,2,2)
+plt.title('dh(x) and slopes'); plt.xlabel('X'); plt.ylabel('dh(x)')
+plt.grid(); plt.xlim(x_3.min(), x_3.max())
+plt.plot(x_3, dh(x_3), color='skyblue', linewidth=5, alpha=0.6)
+plt.scatter(list_x_h, deriv_list_h, color='red', s=80, alpha=0.6)
+plt.show()
+
+# The Learning Rate experiments (TASK-5/6/7)
+local_min, list_x, deriv_list = gradient_descent(dg, 1.9, multiplier=0.02, max_iter=500)
+plt.figure(figsize=[15,5])
+plt.subplot(1,2,1)
+plt.xlim(-2,2); plt.ylim(0.5,5.5)
+plt.title('Cost function'); plt.xlabel('X'); plt.ylabel('g(x)')
+plt.plot(x_2, g(x_2), color='blue', linewidth=3, alpha=0.8)
+plt.scatter(list_x, g(np.array(list_x)), color='red', s=100, alpha=0.6)
+plt.subplot(1,2,2)
+plt.title('Slope of the cost function'); plt.xlabel('X'); plt.ylabel('dg(x)')
+plt.grid(); plt.xlim(-2,2); plt.ylim(-6,8)
+plt.plot(x_2, dg(x_2), color='skyblue', linewidth=5, alpha=0.6)
+plt.scatter(list_x, deriv_list, color='red', s=100, alpha=0.5)
+plt.show()
+print('Number of steps:', len(list_x))
+
+# TASK-5/6: three runs; TASK-7: cost per iteration
+n = 100
+low_gamma = gradient_descent(dg, initial_guess=3, multiplier=0.0005, precision=0.0001, max_iter=n)
+mid_gamma = gradient_descent(dg, initial_guess=3, multiplier=0.001,  precision=0.0001, max_iter=n)  # REQUIRED
+high_gamma = gradient_descent(dg, initial_guess=3, multiplier=0.002, precision=0.0001, max_iter=n)  # REQUIRED
+insane_gamma = gradient_descent(dg, initial_guess=1.9, multiplier=0.25, precision=0.0001, max_iter=n)
+
+def cost_series(xs, func):
+    xs = np.array(xs)
+    return func(xs)
+
+plt.figure(figsize=[14,5])
+plt.title('Cost reduction across iterations for g(x)')
+plt.xlabel('Iteration'); plt.ylabel('g(x)')
+for name, run in [('low',low_gamma), ('mid',mid_gamma), ('high',high_gamma), ('insane',insane_gamma)]:
+    _, xs, _ = run
+    costs = cost_series(xs, g)
+    plt.plot(range(len(xs)), costs, label=name)
+plt.legend(); plt.show()
+
+# -----------------------------------------
+# Example 4: 3D surface + TASK-8/9/10
+# -----------------------------------------
+# f2(x, y) = 1 / (3^{-(x^2 + y^2)} + 1) = 1 / (exp(-(x^2+y^2) ln 3) + 1)
+ln3 = np.log(3.0)
+
+def f2(x, y):
+    r = np.exp(-(x**2 + y**2) * ln3)
+    return 1.0 / (r + 1.0)
+
+# Grid
+x_4 = np.linspace(-2, 2, 200)
+y_4 = np.linspace(-2, 2, 200)
+print('Shape of X array', x_4.shape)
+x_4, y_4 = np.meshgrid(x_4, y_4)
+print('Array after meshgrid:', x_4.shape)
+
+# 3D surface
+fig = plt.figure(figsize=(16,12))
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlabel('X', fontsize=20)
+ax.set_ylabel('Y', fontsize=20)
+ax.set_zlabel('f(x, y) - Cost', fontsize=20)
+ax.plot_surface(x_4, y_4, f2(x_4, y_4), cmap=cm.coolwarm, alpha=0.4)
+plt.show()
+
+# TASK-9: Partial derivatives (analytical result)
+# df/dx = (2x ln 3 * 3^{-(x^2+y^2)}) / (3^{-(x^2+y^2)} + 1)^2
+# df/dy = (2y ln 3 * 3^{-(x^2+y^2)}) / (3^{-(x^2+y^2)} + 1)^2
+a, b = symbols('x, y')
+# Using f2 for sympy prints; adapt as needed if symbolic form required
+print('Value of f2 at x=1.8,y=1.0:', f2(1.8, 1.0))
+
+# TASK-10: numerical partials to use in GD
+def fpx(x, y):
+    r = np.exp(-(x**2 + y**2) * ln3)
+    return (2.0 * x * ln3 * r) / ((r + 1.0)**2)  # REQUIRED
+
+def fpy(x, y):
+    r = np.exp(-(x**2 + y**2) * ln3)
+    return (2.0 * y * ln3 * r) / ((r + 1.0)**2)  # REQUIRED
+
+# Batch gradient descent in 2D
+multiplier = 0.1
+max_iter = 200
+params = np.array([1.8, 1.0])
+values_array = params.reshape(1, 2)
+for n in range(max_iter):
+    gradient_x = fpx(params[0], params[1])
+    gradient_y = fpy(params[0], params[1])
+    gradients = np.array([gradient_x, gradient_y])
+    params = params - multiplier * gradients
+    values_array = np.concatenate((values_array, params.reshape(1, 2)), axis=0)
+
+print('Final gradient:', gradients)
+print('Minimum approx x:', params[0])
+print('Minimum approx y:', params[1])
+print('Cost at min:', f2(params[0], params[1]))
+
+# Plot 3D surface with path
+fig = plt.figure(figsize=[16,12])
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlabel('X', fontsize=20)
+ax.set_ylabel('Y', fontsize=20)
+ax.set_zlabel('f(x, y) - Cost', fontsize=20)
+ax.plot_surface(x_4, y_4, f2(x_4, y_4), cmap=cm.coolwarm, alpha=0.4)
+ax.scatter(values_array[:,0], values_array[:,1], f2(values_array[:,0], values_array[:,1]),
+           s=50, color='red')
+plt.show()
+
+# -----------------------------------------
+# Example 5: MSE linear regression (reference)
+# -----------------------------------------
+x_5 = np.array([[0.1, 1.2, 2.4, 3.2, 4.1, 5.7, 6.5]]).transpose()
+y_5 = np.array([1.7, 2.4, 3.5, 3.0, 6.1, 9.4, 8.2]).reshape(7, 1)
+print('Shape of x_5:', x_5.shape)
+print('Shape of y_5:', y_5.shape)
+
+# Quick linear regression
+regr = LinearRegression()
+regr.fit(x_5, y_5)
+print('Theta 0:', regr.intercept_[0])
+print('Theta 1:', regr.coef_[0][0])
+
+plt.scatter(x_5, y_5, s=50)
+plt.plot(x_5, regr.predict(x_5), color='orange', linewidth=3)
+plt.xlabel('x values'); plt.ylabel('y values')
+plt.show()
+
+# y_hat from shown numbers (can also use regr.predict)
+y_hat = 0.847535148603 + 1.22272646378 * x_5
+print('Est values y_hat:\n', y_hat)
+print('Actual y values:\n', y_5)
+
+def mse(y, y_hat):
+    return np.average((y - y_hat)**2, axis=0)
+
+print('Manual MSE:', mse(y_5, y_hat))
+print('MSE(y, y_hat):', mean_squared_error(y_5, y_hat))
+print('MSE(y, regr.predict):', mean_squared_error(y_5, regr.predict(x_5)))
+
+# 3D MSE surface
+nr_thetas = 200
+th_0 = np.linspace(-1, 3, nr_thetas)
+th_1 = np.linspace(-1, 3, nr_thetas)
+plot_t0, plot_t1 = np.meshgrid(th_0, th_1)
+
+plot_cost = np.zeros((nr_thetas, nr_thetas))
+for i in range(nr_thetas):
+    for j in range(nr_thetas):
+        yh = plot_t0[i][j] + plot_t1[i][j]*x_5
+        plot_cost[i][j] = mse(y_5, yh)
+
+fig = plt.figure(figsize=[16,12])
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlabel('Theta 0', fontsize=20)
+ax.set_ylabel('Theta 1', fontsize=20)
+ax.set_zlabel('Cost - MSE', fontsize=20)
+ax.plot_surface(plot_t0, plot_t1, plot_cost, cmap=cm.hot)
+plt.show()
+
+print('Min value of plot_cost:', plot_cost.min())
+ij_min = np.unravel_index(plot_cost.argmin(), plot_cost.shape)
+print('Argmin (i,j):', ij_min)
+print('Theta0 at min:', plot_t0[ij_min[0]][ij_min[1]])
+print('Theta1 at min:', plot_t1[ij_min[0]][ij_min[1]])
+
+# Gradient for MSE wrt theta0 and theta1
+def grad(x, y, thetas):
+    n = y.size
+    theta0_slope = (-2/n) * np.sum(y - thetas[0] - thetas[1]*x)
+    theta1_slope = (-2/n) * np.sum((y - thetas[0] - thetas[1]*x) * x)
+    return np.array([theta0_slope, theta1_slope])
+
+multiplier = 0.01
+thetas = np.array([2.9, 2.9])
+
+plot_vals = thetas.reshape(1, 2)
+mse_vals = mse(y_5, thetas[0] + thetas[1]*x_5)
+
+for i in range(1000):
+    thetas = thetas - multiplier * grad(x_5, y_5, thetas)
+    plot_vals = np.concatenate((plot_vals, thetas.reshape(1, 2)), axis=0)
+    mse_vals = np.append(mse_vals, mse(y_5, thetas[0] + thetas[1]*x_5))
+
+print('Min Theta0:', thetas[0])
+print('Min Theta1:', thetas[1])
+print('MSE at min:', mse(y_5, thetas[0] + thetas[1]*x_5))
+
+fig = plt.figure(figsize=[16,12])
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlabel('Theta 0', fontsize=20)
+ax.set_ylabel('Theta 1', fontsize=20)
+ax.set_zlabel('Cost - MSE', fontsize=20)
+ax.scatter(plot_vals[:,0], plot_vals[:,1], mse_vals, s=80, color='black')
+ax.plot_surface(plot_t0, plot_t1, plot_cost, cmap=cm.rainbow, alpha=0.4)
+plt.show()
